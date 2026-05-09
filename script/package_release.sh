@@ -150,6 +150,7 @@ DMG_PATH="$RELEASE_DIR/WOVQuickNotes-$VERSION.dmg"
 ZIP_PATH="$RELEASE_DIR/WOVQuickNotes-$VERSION.zip"
 MANIFEST_PLIST="$RELEASE_DIR/release-manifest.plist"
 MANIFEST_JSON="$RELEASE_DIR/release-manifest.json"
+APP_ICON_SOURCE="$ROOT_DIR/Sources/WOVMenubar/Resources/AppIcon.icns"
 
 rm -rf "$MODULE_CACHE" "$RELEASE_DIR"
 mkdir -p "$MODULE_CACHE" "$RELEASE_DIR" "$APP_MACOS" "$APP_RESOURCES" "$APP_FRAMEWORKS"
@@ -181,6 +182,10 @@ for resource_bundle in "$BUILD_BIN_PATH"/*.bundle; do
   fi
 done
 
+if [[ -f "$APP_ICON_SOURCE" ]]; then
+  cp -X "$APP_ICON_SOURCE" "$APP_RESOURCES/AppIcon.icns"
+fi
+
 SPARKLE_FRAMEWORK="$(find "$ROOT_DIR/.build" -path "*/Sparkle.framework" -type d | head -n 1 || true)"
 if [[ -z "$SPARKLE_FRAMEWORK" ]]; then
   echo "Could not locate Sparkle.framework under .build." >&2
@@ -201,6 +206,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_DISPLAY_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>$APP_DISPLAY_NAME</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

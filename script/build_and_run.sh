@@ -19,6 +19,7 @@ APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 MODULE_CACHE="$ROOT_DIR/.build/module-cache"
+APP_ICON_SOURCE="$ROOT_DIR/Sources/WOVMenubar/Resources/AppIcon.icns"
 
 rm -rf "$MODULE_CACHE"
 mkdir -p "$MODULE_CACHE"
@@ -64,6 +65,10 @@ for resource_bundle in "$BUILD_BIN_PATH"/*.bundle; do
   fi
 done
 
+if [ -f "$APP_ICON_SOURCE" ]; then
+  cp "$APP_ICON_SOURCE" "$APP_RESOURCES/AppIcon.icns"
+fi
+
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -77,6 +82,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>WOV Quick Notes</string>
   <key>CFBundleDisplayName</key>
   <string>WOV Quick Notes</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
