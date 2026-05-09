@@ -47,9 +47,6 @@ final class AppModel: ObservableObject {
         let loaded = appStateStore.loadSettings()
         self.settings = loaded
         self.portalBaseURLText = loaded.baseURL.absoluteString
-
-        refreshCredentialState()
-        Task { await refreshPortalContext() }
     }
 
     var canRecord: Bool {
@@ -136,6 +133,7 @@ final class AppModel: ObservableObject {
     func refreshPortalContext() async {
         guard let cookie = portalSessionCookie() else {
             hasPortalSession = false
+            statusMessage = "Sign in to WOV Portal."
             return
         }
 
@@ -243,10 +241,6 @@ final class AppModel: ObservableObject {
         } catch {
             statusMessage = error.localizedDescription
         }
-    }
-
-    private func refreshCredentialState() {
-        hasPortalSession = portalSessionCookie() != nil
     }
 
     private func portalSessionCookie() -> String? {

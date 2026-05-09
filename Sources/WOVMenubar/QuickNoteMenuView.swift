@@ -176,8 +176,6 @@ struct QuickNoteMenuView: View {
             }
             .buttonStyle(PortalIconButtonStyle())
             .help("Refresh")
-            .disabled(!model.hasPortalSession)
-            .opacity(model.hasPortalSession ? 1 : 0.45)
 
             Button {
                 showingSetup.toggle()
