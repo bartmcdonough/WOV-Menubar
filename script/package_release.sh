@@ -42,6 +42,21 @@ Release signing defaults come from:
 USAGE
 }
 
+clean_bundle_metadata() {
+  local bundle_path="$1"
+
+  xattr -cr "$bundle_path" 2>/dev/null || true
+  find "$bundle_path" -depth -name "._*" -delete 2>/dev/null || true
+
+  while IFS= read -r -d '' item; do
+    xattr -c "$item" 2>/dev/null || true
+    xattr -d com.apple.FinderInfo "$item" 2>/dev/null || true
+    xattr -d com.apple.ResourceFork "$item" 2>/dev/null || true
+    xattr -d com.apple.provenance "$item" 2>/dev/null || true
+    xattr -d 'com.apple.fileprovider.fpfs#P' "$item" 2>/dev/null || true
+  done < <(find "$bundle_path" -depth -print0)
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --version)
@@ -121,7 +136,8 @@ fi
 
 MODULE_CACHE="$ROOT_DIR/.build/module-cache-release"
 RELEASE_DIR="$ROOT_DIR/dist/releases/$VERSION"
-STAGING_DIR="$RELEASE_DIR/staging"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/wov-quick-notes-release.XXXXXX")"
+STAGING_DIR="$WORK_DIR/staging"
 APP_BUNDLE="$STAGING_DIR/$APP_DISPLAY_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
@@ -129,15 +145,17 @@ APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_FRAMEWORKS="$APP_CONTENTS/Frameworks"
 APP_BINARY="$APP_MACOS/$APP_EXECUTABLE"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
-ARCHIVE_ROOT="$RELEASE_DIR/archive-root"
+ARCHIVE_ROOT="$WORK_DIR/archive-root"
 DMG_PATH="$RELEASE_DIR/WOVQuickNotes-$VERSION.dmg"
 ZIP_PATH="$RELEASE_DIR/WOVQuickNotes-$VERSION.zip"
 MANIFEST_PLIST="$RELEASE_DIR/release-manifest.plist"
 MANIFEST_JSON="$RELEASE_DIR/release-manifest.json"
 
 rm -rf "$MODULE_CACHE" "$RELEASE_DIR"
-mkdir -p "$MODULE_CACHE" "$APP_MACOS" "$APP_RESOURCES" "$APP_FRAMEWORKS"
+mkdir -p "$MODULE_CACHE" "$RELEASE_DIR" "$APP_MACOS" "$APP_RESOURCES" "$APP_FRAMEWORKS"
+trap 'rm -rf "$WORK_DIR"' EXIT
 export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE"
+export COPYFILE_DISABLE=1
 
 swift build \
   -c release \
@@ -153,13 +171,13 @@ BUILD_BIN_PATH="$(swift build \
   --show-bin-path)"
 BUILD_BINARY="$BUILD_BIN_PATH/$APP_EXECUTABLE"
 
-cp "$BUILD_BINARY" "$APP_BINARY"
+cp -X "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 
 for resource_bundle in "$BUILD_BIN_PATH"/*.bundle; do
   if [[ -e "$resource_bundle" ]]; then
-    ditto "$resource_bundle" "$APP_RESOURCES/$(basename "$resource_bundle")"
-    find "$resource_bundle" -maxdepth 1 -type f -exec cp {} "$APP_RESOURCES/" \;
+    ditto --norsrc "$resource_bundle" "$APP_RESOURCES/$(basename "$resource_bundle")"
+    find "$resource_bundle" -maxdepth 1 -type f -exec cp -X {} "$APP_RESOURCES/" \;
   fi
 done
 
@@ -168,7 +186,7 @@ if [[ -z "$SPARKLE_FRAMEWORK" ]]; then
   echo "Could not locate Sparkle.framework under .build." >&2
   exit 1
 fi
-ditto "$SPARKLE_FRAMEWORK" "$APP_FRAMEWORKS/Sparkle.framework"
+ditto --norsrc "$SPARKLE_FRAMEWORK" "$APP_FRAMEWORKS/Sparkle.framework"
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -205,7 +223,7 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
-xattr -cr "$APP_BUNDLE" 2>/dev/null || true
+clean_bundle_metadata "$APP_BUNDLE"
 
 if [[ "$AD_HOC_SIGN" -eq 1 ]]; then
   codesign --force --deep --options runtime --sign - "$APP_BUNDLE"
@@ -217,17 +235,18 @@ codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
 if [[ "$SKIP_NOTARIZE" -eq 0 && "$AD_HOC_SIGN" -eq 0 ]]; then
   NOTARY_ZIP="$RELEASE_DIR/notary-submit.zip"
-  ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$NOTARY_ZIP"
+  ditto -c -k --norsrc --keepParent "$APP_BUNDLE" "$NOTARY_ZIP"
   xcrun notarytool submit "$NOTARY_ZIP" --keychain-profile "$NOTARYTOOL_PROFILE" --wait
   xcrun stapler staple "$APP_BUNDLE"
   rm -f "$NOTARY_ZIP"
 fi
 
-ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
+ditto -c -k --norsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
 
 rm -rf "$ARCHIVE_ROOT"
 mkdir -p "$ARCHIVE_ROOT"
-ditto "$APP_BUNDLE" "$ARCHIVE_ROOT/$APP_DISPLAY_NAME.app"
+ditto --norsrc "$APP_BUNDLE" "$ARCHIVE_ROOT/$APP_DISPLAY_NAME.app"
+clean_bundle_metadata "$ARCHIVE_ROOT/$APP_DISPLAY_NAME.app"
 ln -s /Applications "$ARCHIVE_ROOT/Applications"
 hdiutil create -volname "$APP_DISPLAY_NAME" -srcfolder "$ARCHIVE_ROOT" -ov -format UDZO "$DMG_PATH"
 
@@ -306,7 +325,6 @@ PLIST
 
 plutil -convert json -o "$MANIFEST_JSON" "$MANIFEST_PLIST"
 rm -f "$MANIFEST_PLIST"
-rm -rf "$ARCHIVE_ROOT"
 
 echo "Release artifacts:"
 echo "  $DMG_PATH"
