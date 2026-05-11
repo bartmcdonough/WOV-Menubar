@@ -92,6 +92,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_BUILD</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
+  <key>LSUIElement</key>
+  <true/>
   <key>NSMicrophoneUsageDescription</key>
   <string>WOV Quick Notes records your voice to draft Portal Quick Notes.</string>
   <key>NSPrincipalClass</key>
